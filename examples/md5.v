@@ -1,6 +1,7 @@
 // md5 hash function implemented in v
 // implementation based on https://tools.ietf.org/html/rfc1321
 // and the book Applied Cryptography
+import time
 
 union U64Value {
 mut:
@@ -19,6 +20,12 @@ struct ABCD {
 	b u32
 	c u32
 	d u32
+}
+
+union WordBlock {
+mut:
+	bytes [64]byte
+	u32_arr [16]u32
 }
 
 union MessageDigest {
@@ -93,21 +100,10 @@ fn (md5 MD5) encode() []byte {
 	mut d := u32(0x10325476)
 
 	// Step 4. Process Message in 16-Word Blocks. Here a word is meant to be a u32
-	mut cursor := 0
+	mut block := WordBlock{}
 	for i in 0..message_bytes.len/64 {
-		mut x := []u32
-		mut u32_word := U32Value{}
-
-		for j in 0..16 {
-			u32_word.bytes[0] = message_bytes[cursor]
-			cursor++
-			u32_word.bytes[1] = message_bytes[cursor]
-			cursor++
-			u32_word.bytes[2] = message_bytes[cursor]
-			cursor++
-			u32_word.bytes[3] = message_bytes[cursor]
-			cursor++
-			x << u32_word.xu32
+		unsafe {
+			C.memcpy(block.bytes, message_bytes[i*64..i*64+64].data, 64)
 		}
 
 	// save current state
@@ -117,77 +113,77 @@ fn (md5 MD5) encode() []byte {
 		mut dd := d
 
 	// Round 1.
-        a = aux_x(aux_f, a, b, c, d, x[0],   7, 0xD76AA478)
-        d = aux_x(aux_f, d, a, b, c, x[1],  12, 0xE8C7B756)
-        c = aux_x(aux_f, c, d, a, b, x[2],  17, 0x242070DB)
-        b = aux_x(aux_f, b, c, d, a, x[3],  22, 0xC1BDCEEE)
-        a = aux_x(aux_f, a, b, c, d, x[4],   7, 0xF57C0FAF)
-        d = aux_x(aux_f, d, a, b, c, x[5],  12, 0x4787C62A)
-        c = aux_x(aux_f, c, d, a, b, x[6],  17, 0xA8304613)
-        b = aux_x(aux_f, b, c, d, a, x[7],  22, 0xFD469501)
-        a = aux_x(aux_f, a, b, c, d, x[8],   7, 0x698098D8)
-        d = aux_x(aux_f, d, a, b, c, x[9],  12, 0x8B44F7AF)
-        c = aux_x(aux_f, c, d, a, b, x[10], 17, 0xFFFF5BB1)
-        b = aux_x(aux_f, b, c, d, a, x[11], 22, 0x895CD7BE)
-        a = aux_x(aux_f, a, b, c, d, x[12],  7, 0x6B901122)
-        d = aux_x(aux_f, d, a, b, c, x[13], 12, 0xFD987193)
-        c = aux_x(aux_f, c, d, a, b, x[14], 17, 0xA679438E)
-        b = aux_x(aux_f, b, c, d, a, x[15], 22, 0x49B40821)
+        a = aux_x(aux_f, a, b, c, d, block.u32_arr[0],   7, 0xD76AA478)
+        d = aux_x(aux_f, d, a, b, c, block.u32_arr[1],  12, 0xE8C7B756)
+        c = aux_x(aux_f, c, d, a, b, block.u32_arr[2],  17, 0x242070DB)
+        b = aux_x(aux_f, b, c, d, a, block.u32_arr[3],  22, 0xC1BDCEEE)
+        a = aux_x(aux_f, a, b, c, d, block.u32_arr[4],   7, 0xF57C0FAF)
+        d = aux_x(aux_f, d, a, b, c, block.u32_arr[5],  12, 0x4787C62A)
+        c = aux_x(aux_f, c, d, a, b, block.u32_arr[6],  17, 0xA8304613)
+        b = aux_x(aux_f, b, c, d, a, block.u32_arr[7],  22, 0xFD469501)
+        a = aux_x(aux_f, a, b, c, d, block.u32_arr[8],   7, 0x698098D8)
+        d = aux_x(aux_f, d, a, b, c, block.u32_arr[9],  12, 0x8B44F7AF)
+        c = aux_x(aux_f, c, d, a, b, block.u32_arr[10], 17, 0xFFFF5BB1)
+        b = aux_x(aux_f, b, c, d, a, block.u32_arr[11], 22, 0x895CD7BE)
+        a = aux_x(aux_f, a, b, c, d, block.u32_arr[12],  7, 0x6B901122)
+        d = aux_x(aux_f, d, a, b, c, block.u32_arr[13], 12, 0xFD987193)
+        c = aux_x(aux_f, c, d, a, b, block.u32_arr[14], 17, 0xA679438E)
+        b = aux_x(aux_f, b, c, d, a, block.u32_arr[15], 22, 0x49B40821)
 
 	// Round 2.
-        a = aux_x(aux_g, a, b, c, d, x[1],   5, 0xF61E2562)
-        d = aux_x(aux_g, d, a, b, c, x[6],   9, 0xC040B340)
-        c = aux_x(aux_g, c, d, a, b, x[11], 14, 0x265E5A51)
-        b = aux_x(aux_g, b, c, d, a, x[0],  20, 0xE9B6C7AA)
-        a = aux_x(aux_g, a, b, c, d, x[5],   5, 0xD62F105D)
-        d = aux_x(aux_g, d, a, b, c, x[10],  9, 0x02441453)
-        c = aux_x(aux_g, c, d, a, b, x[15], 14, 0xD8A1E681)
-        b = aux_x(aux_g, b, c, d, a, x[4],  20, 0xE7D3FBC8)
-        a = aux_x(aux_g, a, b, c, d, x[9],   5, 0x21E1CDE6)
-        d = aux_x(aux_g, d, a, b, c, x[14],  9, 0xC33707D6)
-        c = aux_x(aux_g, c, d, a, b, x[3],  14, 0xF4D50D87)
-        b = aux_x(aux_g, b, c, d, a, x[8],  20, 0x455A14ED)
-        a = aux_x(aux_g, a, b, c, d, x[13],  5, 0xA9E3E905)
-        d = aux_x(aux_g, d, a, b, c, x[2],   9, 0xFCEFA3F8)
-        c = aux_x(aux_g, c, d, a, b, x[7],  14, 0x676F02D9)
-        b = aux_x(aux_g, b, c, d, a, x[12], 20, 0x8D2A4C8A)
+        a = aux_x(aux_g, a, b, c, d, block.u32_arr[1],   5, 0xF61E2562)
+        d = aux_x(aux_g, d, a, b, c, block.u32_arr[6],   9, 0xC040B340)
+        c = aux_x(aux_g, c, d, a, b, block.u32_arr[11], 14, 0x265E5A51)
+        b = aux_x(aux_g, b, c, d, a, block.u32_arr[0],  20, 0xE9B6C7AA)
+        a = aux_x(aux_g, a, b, c, d, block.u32_arr[5],   5, 0xD62F105D)
+        d = aux_x(aux_g, d, a, b, c, block.u32_arr[10],  9, 0x02441453)
+        c = aux_x(aux_g, c, d, a, b, block.u32_arr[15], 14, 0xD8A1E681)
+        b = aux_x(aux_g, b, c, d, a, block.u32_arr[4],  20, 0xE7D3FBC8)
+        a = aux_x(aux_g, a, b, c, d, block.u32_arr[9],   5, 0x21E1CDE6)
+        d = aux_x(aux_g, d, a, b, c, block.u32_arr[14],  9, 0xC33707D6)
+        c = aux_x(aux_g, c, d, a, b, block.u32_arr[3],  14, 0xF4D50D87)
+        b = aux_x(aux_g, b, c, d, a, block.u32_arr[8],  20, 0x455A14ED)
+        a = aux_x(aux_g, a, b, c, d, block.u32_arr[13],  5, 0xA9E3E905)
+        d = aux_x(aux_g, d, a, b, c, block.u32_arr[2],   9, 0xFCEFA3F8)
+        c = aux_x(aux_g, c, d, a, b, block.u32_arr[7],  14, 0x676F02D9)
+        b = aux_x(aux_g, b, c, d, a, block.u32_arr[12], 20, 0x8D2A4C8A)
 
 	// Round 3.
-        a = aux_x(aux_h, a, b, c, d, x[5],   4, 0xFFFA3942)
-        d = aux_x(aux_h, d, a, b, c, x[8],  11, 0x8771F681)
-        c = aux_x(aux_h, c, d, a, b, x[11], 16, 0x6D9D6122)
-        b = aux_x(aux_h, b, c, d, a, x[14], 23, 0xFDE5380C)
-        a = aux_x(aux_h, a, b, c, d, x[1],   4, 0xA4BEEA44)
-        d = aux_x(aux_h, d, a, b, c, x[4],  11, 0x4BDECFA9)
-        c = aux_x(aux_h, c, d, a, b, x[7],  16, 0xF6BB4B60)
-        b = aux_x(aux_h, b, c, d, a, x[10], 23, 0xBEBFBC70)
-        a = aux_x(aux_h, a, b, c, d, x[13],  4, 0x289B7EC6)
-        d = aux_x(aux_h, d, a, b, c, x[0], 	11, 0xEAA127FA)
-        c = aux_x(aux_h, c, d, a, b, x[3], 	16, 0xD4EF3085)
-        b = aux_x(aux_h, b, c, d, a, x[6], 	23, 0x04881D05)
-        a = aux_x(aux_h, a, b, c, d, x[9], 	 4, 0xD9D4D039)
-        d = aux_x(aux_h, d, a, b, c, x[12], 11, 0xE6DB99E5)
-        c = aux_x(aux_h, c, d, a, b, x[15], 16, 0x1FA27CF8)
-        b = aux_x(aux_h, b, c, d, a, x[2],  23, 0xC4AC5665)
+        a = aux_x(aux_h, a, b, c, d, block.u32_arr[5],   4, 0xFFFA3942)
+        d = aux_x(aux_h, d, a, b, c, block.u32_arr[8],  11, 0x8771F681)
+        c = aux_x(aux_h, c, d, a, b, block.u32_arr[11], 16, 0x6D9D6122)
+        b = aux_x(aux_h, b, c, d, a, block.u32_arr[14], 23, 0xFDE5380C)
+        a = aux_x(aux_h, a, b, c, d, block.u32_arr[1],   4, 0xA4BEEA44)
+        d = aux_x(aux_h, d, a, b, c, block.u32_arr[4],  11, 0x4BDECFA9)
+        c = aux_x(aux_h, c, d, a, b, block.u32_arr[7],  16, 0xF6BB4B60)
+        b = aux_x(aux_h, b, c, d, a, block.u32_arr[10], 23, 0xBEBFBC70)
+        a = aux_x(aux_h, a, b, c, d, block.u32_arr[13],  4, 0x289B7EC6)
+        d = aux_x(aux_h, d, a, b, c, block.u32_arr[0], 	11, 0xEAA127FA)
+        c = aux_x(aux_h, c, d, a, b, block.u32_arr[3], 	16, 0xD4EF3085)
+        b = aux_x(aux_h, b, c, d, a, block.u32_arr[6], 	23, 0x04881D05)
+        a = aux_x(aux_h, a, b, c, d, block.u32_arr[9], 	 4, 0xD9D4D039)
+        d = aux_x(aux_h, d, a, b, c, block.u32_arr[12], 11, 0xE6DB99E5)
+        c = aux_x(aux_h, c, d, a, b, block.u32_arr[15], 16, 0x1FA27CF8)
+        b = aux_x(aux_h, b, c, d, a, block.u32_arr[2],  23, 0xC4AC5665)
 
 
 	// Round 4.
-        a = aux_x(aux_i, a, b, c, d, x[0],   6, 0xF4292244)
-        d = aux_x(aux_i, d, a, b, c, x[7],  10, 0x432AFF97)
-        c = aux_x(aux_i, c, d, a, b, x[14], 15, 0xAB9423A7)
-        b = aux_x(aux_i, b, c, d, a, x[5],  21, 0xFC93A039)
-        a = aux_x(aux_i, a, b, c, d, x[12],  6, 0x655B59C3)
-        d = aux_x(aux_i, d, a, b, c, x[3],  10, 0x8F0CCC92)
-        c = aux_x(aux_i, c, d, a, b, x[10], 15, 0xFFEFF47D)
-        b = aux_x(aux_i, b, c, d, a, x[1],  21, 0x85845DD1)
-        a = aux_x(aux_i, a, b, c, d, x[8],   6, 0x6FA87E4F)
-        d = aux_x(aux_i, d, a, b, c, x[15], 10, 0xFE2CE6E0)
-        c = aux_x(aux_i, c, d, a, b, x[6],  15, 0xA3014314)
-        b = aux_x(aux_i, b, c, d, a, x[13], 21, 0x4E0811A1)
-        a = aux_x(aux_i, a, b, c, d, x[4],   6, 0xF7537E82)
-        d = aux_x(aux_i, d, a, b, c, x[11], 10, 0xBD3AF235)
-        c = aux_x(aux_i, c, d, a, b, x[2],  15, 0x2AD7D2BB)
-        b = aux_x(aux_i, b, c, d, a, x[9],  21, 0xEB86D391)
+        a = aux_x(aux_i, a, b, c, d, block.u32_arr[0],   6, 0xF4292244)
+        d = aux_x(aux_i, d, a, b, c, block.u32_arr[7],  10, 0x432AFF97)
+        c = aux_x(aux_i, c, d, a, b, block.u32_arr[14], 15, 0xAB9423A7)
+        b = aux_x(aux_i, b, c, d, a, block.u32_arr[5],  21, 0xFC93A039)
+        a = aux_x(aux_i, a, b, c, d, block.u32_arr[12],  6, 0x655B59C3)
+        d = aux_x(aux_i, d, a, b, c, block.u32_arr[3],  10, 0x8F0CCC92)
+        c = aux_x(aux_i, c, d, a, b, block.u32_arr[10], 15, 0xFFEFF47D)
+        b = aux_x(aux_i, b, c, d, a, block.u32_arr[1],  21, 0x85845DD1)
+        a = aux_x(aux_i, a, b, c, d, block.u32_arr[8],   6, 0x6FA87E4F)
+        d = aux_x(aux_i, d, a, b, c, block.u32_arr[15], 10, 0xFE2CE6E0)
+        c = aux_x(aux_i, c, d, a, b, block.u32_arr[6],  15, 0xA3014314)
+        b = aux_x(aux_i, b, c, d, a, block.u32_arr[13], 21, 0x4E0811A1)
+        a = aux_x(aux_i, a, b, c, d, block.u32_arr[4],   6, 0xF7537E82)
+        d = aux_x(aux_i, d, a, b, c, block.u32_arr[11], 10, 0xBD3AF235)
+        c = aux_x(aux_i, c, d, a, b, block.u32_arr[2],  15, 0x2AD7D2BB)
+        b = aux_x(aux_i, b, c, d, a, block.u32_arr[9],  21, 0xEB86D391)
 
 	// increment with previously saved state
 		a += aa
@@ -199,7 +195,7 @@ fn (md5 MD5) encode() []byte {
 	// Step 5. Output
 	mut m_digest := MessageDigest{}
 	m_digest.abcd = ABCD{a, b, c, d }
-	mut msg_digest := []byte{}
+	mut msg_digest := []byte{cap: 16}
 
 	for b_yte in m_digest.bytes {
 		msg_digest << b_yte
@@ -209,31 +205,40 @@ fn (md5 MD5) encode() []byte {
 }
 
 fn main() {
-	mut md5 := MD5 {''}
-	mut result := md5.hexdigest()
-	assert result == 'd41d8cd98f00b204e9800998ecf8427e'
+    sw := time.new_stopwatch({})
+	for _ in 0..10000 {
+		mut md5 := MD5 {''}
+		mut result := md5.hexdigest()
+		assert result == 'd41d8cd98f00b204e9800998ecf8427e'
 
-	md5 = MD5 {'a'}
-	result = md5.hexdigest()
-	assert result == '0cc175b9c0f1b6a831c399e269772661'
+		md5 = MD5 {'a'}
+		result = md5.hexdigest()
+		assert result == '0cc175b9c0f1b6a831c399e269772661'
 
-	md5 = MD5 {'abc'}
-	result = md5.hexdigest()
-	assert result == '900150983cd24fb0d6963f7d28e17f72'
+		md5 = MD5 {'abc'}
+		result = md5.hexdigest()
+		assert result == '900150983cd24fb0d6963f7d28e17f72'
 
-	md5 = MD5 {'message digest'}
-	result = md5.hexdigest()
-	assert result == 'f96b697d7cb7938d525a2f31aaf161d0'
+		md5 = MD5 {'message digest'}
+		result = md5.hexdigest()
+		assert result == 'f96b697d7cb7938d525a2f31aaf161d0'
 
-	md5 = MD5 {'abcdefghijklmnopqrstuvwxyz'}
-	result = md5.hexdigest()
-	assert result == 'c3fcd3d76192e4007dfb496cca67e13b'
+		md5 = MD5 {'abcdefghijklmnopqrstuvwxyz'}
+		result = md5.hexdigest()
+		assert result == 'c3fcd3d76192e4007dfb496cca67e13b'
 
-	md5 = MD5 {'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789'}
-	result = md5.hexdigest()
-	assert result == 'd174ab98d277d9f5a5611c2c9f419d9f'
+		md5 = MD5 {'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789'}
+		result = md5.hexdigest()
+		assert result == 'd174ab98d277d9f5a5611c2c9f419d9f'
 
-	md5 = MD5 {'12345678901234567890123456789012345678901234567890123456789012345678901234567890'}
-	result = md5.hexdigest()
-	assert result == '57edf4a22be3c955ac49da2e2107b67a'
+		md5 = MD5 {'12345678901234567890123456789012345678901234567890123456789012345678901234567890'}
+		result = md5.hexdigest()
+		assert result == '57edf4a22be3c955ac49da2e2107b67a'
+
+		md5 = MD5 {'1234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890'}
+		result = md5.hexdigest()
+		assert result == 'fdacad297f72956e0619002cecffc8e3'
+
+	}
+	println('took: ${sw.elapsed().nanoseconds()}ns')
 }
