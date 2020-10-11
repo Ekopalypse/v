@@ -10,6 +10,7 @@ const (
 	npad      = []byte{len: 256, init: 0}
 )
 
+// returns a HMAC based hash, byte array, depending on the used hash algo
 fn encode(hash_func fn(bytes []byte) []byte, blocksize int, key []byte, text []byte) []byte {
 	mut b_key := if key.len <= blocksize { key } else { hash_func(key) }
 	if b_key.len < blocksize {
