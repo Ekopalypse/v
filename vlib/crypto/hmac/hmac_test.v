@@ -42,7 +42,7 @@ const (
 					0xaa, 0xaa, 0xaa, 0xaa, 0xaa, 0xaa],
 			]
 
-	text = ['Hi There'.bytes(),
+	data = ['Hi There'.bytes(),
 			 'what do ya want for nothing?'.bytes(),
 			[byte(0xDD), 0xDD, 0xDD, 0xDD, 0xDD, 0xDD, 0xDD, 0xDD, 0xDD,
 					0xDD, 0xDD, 0xDD, 0xDD, 0xDD, 0xDD, 0xDD, 0xDD, 0xDD, 0xDD, 0xDD, 0xDD, 0xDD, 0xDD, 0xDD, 0xDD,
@@ -71,7 +71,7 @@ fn test_hmac_md5() {
 	]
 	mut result := ''
 	for i, key in keys {
-		result = hmac.new(md5.sum, md5.block_size, key, text[i] ).hex()
+		result = hmac.new(key, data[i], md5.sum, md5.block_size).hex()
 		assert result == md5_expected_results[i]
 	}
 }
@@ -89,7 +89,7 @@ fn test_hmac_sha1() {
 	mut result := ''
 	for i, key in keys {
 
-		result = hmac.new(sha1.sum, sha1.block_size, key, text[i] ).hex()
+		result = hmac.new(key, data[i], sha1.sum, sha1.block_size).hex()
 		assert result == sha1_expected_results[i]
 	}
 }
@@ -107,7 +107,7 @@ fn test_hmac_sha224() {
 	mut result := ''
 	for i, key in keys {
 
-		result = hmac.new(sha256.sum224, sha256.block_size, key, text[i] ).hex()
+		result = hmac.new(key, data[i], sha256.sum224, sha256.block_size).hex()
 		assert result == sha224_expected_results[i]
 	}
 }
@@ -125,7 +125,7 @@ fn test_hmac_sha256() {
 	mut result := ''
 	for i, key in keys {
 
-		result = hmac.new(sha256.sum, sha256.block_size, key, text[i] ).hex()
+		result = hmac.new( key, data[i], sha256.sum, sha256.block_size).hex()
 		assert result == sha256_expected_results[i]
 	}
 }
@@ -142,8 +142,7 @@ fn test_hmac_sha384() {
 	]
 	mut result := ''
 	for i, key in keys {
-
-		result = hmac.new(sha512.sum384, sha512.block_size, key, text[i] ).hex()
+		result = hmac.new(key, data[i], sha512.sum384, sha512.block_size).hex()
 		assert result == sha384_expected_results[i]
 	}
 }
@@ -160,8 +159,7 @@ fn test_hmac_sha512() {
 	]
 	mut result := ''
 	for i, key in keys {
-
-		result = hmac.new(sha512.sum512, sha512.block_size, key, text[i] ).hex()
+		result = hmac.new(key, data[i], sha512.sum512, sha512.block_size).hex()
 		assert result == sha512_expected_results[i]
 	}
 }
