@@ -162,7 +162,7 @@ pub fn (d Doc) get_name(stmt ast.Stmt) string {
 		ast.InterfaceDecl { return stmt.name }
 		ast.TypeDecl { return d.get_type_name(stmt) }
 		ast.ConstDecl { return 'Constants' }
-		else { return '' }
+		else { return typeof(stmt) }
 	}
 }
 
@@ -397,7 +397,7 @@ pub fn (mut d Doc) generate_from_ast(file_ast ast.File, orig_mod_name string) []
 					continue
 				}
 				if stmt.receiver.typ != 0 {
-					node.attrs['parent'] = d.fmt.type_to_str(stmt.receiver.typ).trim_left('&')
+					node.attrs['parent'] = d.fmt.table.type_to_str(stmt.receiver.typ).trim_left('&')
 					p_idx := contents.index_by_name(node.attrs['parent'])
 					if p_idx == -1 && node.attrs['parent'] != 'void' {
 						contents << DocNode{
@@ -453,7 +453,7 @@ pub fn (mut d Doc) generate_from_ast_with_pos(file_ast ast.File, pos int) []DocN
 
 fn (mut d Doc) expr_typ_to_string(ex ast.Expr) string {
 	expr_typ := d.checker.expr(ex)
-	return d.fmt.type_to_str(expr_typ)
+	return d.fmt.table.type_to_str(expr_typ)
 }
 
 fn (mut d Doc) generate() ?Doc {

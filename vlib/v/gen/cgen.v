@@ -101,7 +101,7 @@ mut:
 	inside_return         bool
 	inside_or_block       bool
 	strs_to_free          []string // strings.Builder
-	strs_to_free0         []string // strings.Builder
+	// strs_to_free0         []string // strings.Builder
 	inside_call           bool
 	has_main              bool
 	inside_const          bool
@@ -571,29 +571,7 @@ static inline void __${styp}_pushval($styp ch, $el_stype val) {
 				g.type_definitions.writeln('typedef map $styp;')
 			}
 			.function {
-				info := typ.info as table.FnType
-				func := info.func
-				sym := g.table.get_type_symbol(func.return_type)
-				is_multi := sym.kind == .multi_return
-				is_fn_sig := func.name == ''
-				not_anon := !info.is_anon
-				if !info.has_decl && !is_multi && (not_anon || is_fn_sig) {
-					fn_name := if func.language == .c {
-						util.no_dots(func.name)
-					} else if info.is_anon {
-						typ.name
-					} else {
-						c_name(func.name)
-					}
-					g.type_definitions.write('typedef ${g.typ(func.return_type)} (*$fn_name)(')
-					for i, param in func.params {
-						g.type_definitions.write(g.typ(param.typ))
-						if i < func.params.len - 1 {
-							g.type_definitions.write(',')
-						}
-					}
-					g.type_definitions.writeln(');')
-				}
+				g.write_fn_typesymbol_declaration(typ)
 			}
 			else {
 				continue
@@ -602,31 +580,66 @@ static inline void __${styp}_pushval($styp ch, $el_stype val) {
 	}
 }
 
-pub fn (mut g Gen) write_multi_return_types() {
-	g.type_definitions.writeln('// multi return structs')
-	for typ in g.table.types {
-		// sym := g.table.get_type_symbol(typ)
-		if typ.kind != .multi_return {
-			continue
+pub fn (mut g Gen) write_fn_typesymbol_declaration(sym table.TypeSymbol) {
+	info := sym.info as table.FnType
+	func := info.func
+	mut retsym := g.table.get_type_symbol(func.return_type)
+	is_multi := retsym.kind == .multi_return
+	is_fn_sig := func.name == ''
+	not_anon := !info.is_anon
+	if is_multi {
+		g.write_multi_return_type_declaration(mut retsym)
+	}
+	if !info.has_decl && (not_anon || is_fn_sig) {
+		fn_name := if func.language == .c {
+			util.no_dots(func.name)
+		} else if info.is_anon {
+			sym.name
+		} else {
+			c_name(func.name)
 		}
-		name := util.no_dots(typ.name)
-		info := typ.info as table.MultiReturn
-		g.type_definitions.writeln('typedef struct {')
-		// TODO copy pasta StructDecl
-		// for field in struct_info.fields {
-		for i, mr_typ in info.types {
-			type_name := g.typ(mr_typ)
-			g.type_definitions.writeln('\t$type_name arg$i;')
+		g.type_definitions.write('typedef ${g.typ(func.return_type)} (*$fn_name)(')
+		for i, param in func.params {
+			g.type_definitions.write(g.typ(param.typ))
+			if i < func.params.len - 1 {
+				g.type_definitions.write(',')
+			}
 		}
-		g.type_definitions.writeln('} $name;\n')
-		// g.typedefs.writeln('typedef struct $name $name;')
+		g.type_definitions.writeln(');')
 	}
 }
 
-pub fn (mut g Gen) write_variadic_types() {
-	if g.variadic_args.len > 0 {
-		g.type_definitions.writeln('// variadic structs')
+pub fn (mut g Gen) write_multi_return_type_declaration(mut sym table.TypeSymbol) {
+	if sym.is_written {
+		return
 	}
+	name := util.no_dots(sym.name)
+	info := sym.info as table.MultiReturn
+	g.type_definitions.writeln('typedef struct {')
+	// TODO copy pasta StructDecl
+	// for field in struct_info.fields {
+	for i, mr_typ in info.types {
+		type_name := g.typ(mr_typ)
+		g.type_definitions.writeln('\t$type_name arg$i;')
+	}
+	g.type_definitions.writeln('} $name;\n')
+	// g.typedefs.writeln('typedef struct $name $name;')
+	sym.is_written = true
+}
+
+pub fn (mut g Gen) write_multi_return_types() {
+	g.type_definitions.writeln('\n// BEGIN_multi_return_structs')
+	for idx in 0 .. g.table.types.len {
+		if g.table.types[idx].kind != .multi_return {
+			continue
+		}
+		g.write_multi_return_type_declaration(mut g.table.types[idx])
+	}
+	g.type_definitions.writeln('// END_multi_return_structs\n')
+}
+
+pub fn (mut g Gen) write_variadic_types() {
+	g.type_definitions.writeln('\n//BEGIN_variadic_structs')
 	for type_str, arg_len in g.variadic_args {
 		typ := table.Type(type_str.int())
 		type_name := g.typ(typ)
@@ -637,6 +650,7 @@ pub fn (mut g Gen) write_variadic_types() {
 		g.type_definitions.writeln('};\n')
 		g.typedefs.writeln('typedef struct $struct_name $struct_name;')
 	}
+	g.type_definitions.writeln('// END_variadic_structs\n')
 }
 
 pub fn (mut g Gen) write(s string) {
@@ -827,13 +841,7 @@ fn (mut g Gen) stmt(node ast.Stmt) {
 			}
 			g.expr(node.expr)
 			if af {
-				if g.strs_to_free.len > 0 {
-					g.writeln(';\n// strs_to_free2:')
-					for s in g.strs_to_free {
-						g.writeln('string_free(&$s);')
-					}
-					g.strs_to_free = []
-				}
+				g.autofree_call_postgen()
 			}
 			if g.inside_ternary == 0 && !node.is_expr && !(node.expr is ast.IfExpr) {
 				g.writeln(';')
@@ -1361,6 +1369,13 @@ fn (mut g Gen) gen_assign_stmt(assign_stmt ast.AssignStmt) {
 			g.writeln('); // free str on re-assignment')
 		}
 	}
+	// Autofree tmp arg vars
+	first_right := assign_stmt.right[0]
+	af := g.pref.autofree && first_right is ast.CallExpr && !g.is_builtin_mod
+	if af {
+		g.autofree_call_pregen(first_right as ast.CallExpr)
+	}
+	//
 	// Handle optionals. We need to declare a temp variable for them, that's why they are handled
 	// here, not in call_expr().
 	// `pos := s.index('x') or { return }`
@@ -1374,8 +1389,10 @@ fn (mut g Gen) gen_assign_stmt(assign_stmt ast.AssignStmt) {
 	// int pos = *(int*)_t190.data;
 	mut gen_or := false
 	mut tmp_opt := ''
-	if g.pref.autofree && assign_stmt.op == .decl_assign && assign_stmt.left_types.len == 1 &&
-		assign_stmt.right[0] is ast.CallExpr {
+	is_optional := g.pref.autofree && assign_stmt.op == .decl_assign && assign_stmt.left_types.len ==
+		1 && assign_stmt.right[0] is ast.CallExpr
+	if is_optional {
+		// g.write('/* optional assignment */')
 		call_expr := assign_stmt.right[0] as ast.CallExpr
 		if call_expr.or_block.kind != .absent {
 			styp := g.typ(call_expr.return_type.set_flag(.optional))
@@ -1385,17 +1402,19 @@ fn (mut g Gen) gen_assign_stmt(assign_stmt ast.AssignStmt) {
 			gen_or = true
 			g.or_block(tmp_opt, call_expr.or_block, call_expr.return_type)
 			g.writeln('/*=============ret*/')
+			if af && is_optional {
+				g.autofree_call_postgen()
+			}
 			// return
 		}
 	}
-	//
 	// json_test failed w/o this check
 	if return_type != table.void_type && return_type != 0 {
 		sym := g.table.get_type_symbol(return_type)
 		if sym.kind == .multi_return {
 			// multi return
 			// TODO Handle in if_expr
-			is_optional := return_type.has_flag(.optional)
+			is_opt := return_type.has_flag(.optional)
 			mr_var_name := 'mr_$assign_stmt.pos.pos'
 			mr_styp := g.typ(return_type)
 			g.write('$mr_styp $mr_var_name = ')
@@ -1417,7 +1436,7 @@ fn (mut g Gen) gen_assign_stmt(assign_stmt ast.AssignStmt) {
 					g.write('$styp ')
 				}
 				g.expr(lx)
-				if is_optional {
+				if is_opt {
 					mr_base_styp := g.base_type(return_type)
 					g.writeln(' = (*($mr_base_styp*)${mr_var_name}.data).arg$i;')
 				} else {
@@ -2223,7 +2242,6 @@ fn (mut g Gen) expr(node ast.Expr) {
 		}
 		ast.SelectorExpr {
 			if node.expr is ast.TypeOf as left {
-				// typeof(expr).name
 				g.typeof_name(left)
 				return
 			}

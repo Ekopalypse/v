@@ -1041,7 +1041,8 @@ pub fn (mut p Parser) name_expr() ast.Expr {
 		// if name in table.builtin_type_names {
 		if (!known_var && (name in p.table.type_idxs ||
 			name_w_mod in p.table.type_idxs) && name !in ['C.stat', 'C.sigaction']) ||
-			is_mod_cast {
+			is_mod_cast || (!(name.len > 1 && name[0] == `C` && name[1] == `.`) && name[0].is_capital()) {
+			// MainLetter(x) is *always* a cast, as long as it is not `C.`
 			// TODO handle C.stat()
 			mut to_typ := p.parse_type()
 			if p.is_amp {
@@ -1543,12 +1544,12 @@ fn (mut p Parser) import_syms(mut parent ast.Import) {
 			idx := p.table.add_placeholder_type(name)
 			typ := table.new_type(idx)
 			prepend_mod_name := p.prepend_mod(alias)
-			p.table.register_type_symbol({
+			p.table.register_type_symbol(table.TypeSymbol{
 				kind: .alias
 				name: prepend_mod_name
 				source_name: prepend_mod_name
-				parent_idx: idx
 				mod: p.mod
+				parent_idx: idx
 				info: table.Alias{
 					parent_type: typ
 					language: table.Language.v
@@ -1877,12 +1878,12 @@ fn (mut p Parser) type_decl() ast.TypeDecl {
 		table.Language.v
 	}
 	prepend_mod_name := p.prepend_mod(name)
-	p.table.register_type_symbol({
+	p.table.register_type_symbol(table.TypeSymbol{
 		kind: .alias
 		name: prepend_mod_name
 		source_name: prepend_mod_name
-		parent_idx: pid
 		mod: p.mod
+		parent_idx: pid
 		info: table.Alias{
 			parent_type: parent_type
 			language: language
